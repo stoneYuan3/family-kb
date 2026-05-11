@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: familykb
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: familykb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./family-kb-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://familykb:123456@localhost:5432/familykb
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      - db
+
+  frontend:
+    build: ./family-kb-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://192.168.1.86:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
