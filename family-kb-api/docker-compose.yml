@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: familykb
       POSTGRES_PASSWORD: localdevpassword
-      POSTGRES_DB: family_kb
+      POSTGRES_DB: familykb
     ports:
       - "5432:5432"
     volumes:
