@@ -13,7 +13,10 @@ app.use(express.json())
 
 const cors = require('cors');  // add near the top with other requires
 // add this BEFORE your routes, right after `const app = express()`
-app.use(cors({ origin: 'http://localhost:3001' }));
+app.use(cors({
+  origin: process.env.CORS_ORIGIN,
+  credentials: true
+}));
 
 app.use('/api/users', usersRoutes);
 app.use('/api/collections', collectionsRoutes);
