@@ -3,6 +3,7 @@ version: "3.8"
 services:
   db:
     image: postgres:16
+    container_name: family_kb_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: familykb
@@ -16,9 +17,8 @@ services:
   backend:
     build: ./family-kb-api
     restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://familykb:123456@localhost:5432/familykb
-      PORT: 4000
+    env_file:
+      - ./family-kb-api/.env
     ports:
       - "4000:4000"
     depends_on:
@@ -27,8 +27,8 @@ services:
   frontend:
     build: ./family-kb-frontend
     restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: http://192.168.1.86:4000
+    env_file:
+      - ./family-kb-frontend/.env
     ports:
       - "3000:3000"
     depends_on:
