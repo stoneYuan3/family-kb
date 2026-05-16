@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: familykb
-      POSTGRES_PASSWORD: localdevpassword
+      POSTGRES_PASSWORD: 123456
       POSTGRES_DB: familykb
     ports:
       - "5432:5432"
