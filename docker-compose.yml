@@ -23,6 +23,8 @@ services:
       - "4000:4000"
     depends_on:
       - db
+    volumes:
+      - ./family-kb-api/uploads:/app/uploads
 
   frontend:
     build: ./family-kb-frontend
