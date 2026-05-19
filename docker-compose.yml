@@ -31,6 +31,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./family-kb-frontend/.env
+    environment:
+      - BACKEND_URL=http://backend:4000
     ports:
       - "3000:3000"
     depends_on:
