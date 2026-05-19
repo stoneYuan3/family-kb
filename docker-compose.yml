@@ -27,7 +27,10 @@ services:
       - ./family-kb-api/uploads:/app/uploads
 
   frontend:
-    build: ./family-kb-frontend
+    build:
+      context: ./family-kb-frontend
+      args:
+        - BACKEND_URL=http://backend:4000
     restart: unless-stopped
     env_file:
       - ./family-kb-frontend/.env
