@@ -52,7 +52,7 @@ const deleteDocument = async (req, res) => {
     }
 
     // Delete the actual file from disk
-    const filePath = path.join(__dirname, '../../', result.rows[0].file_path);
+    const filePath = path.join(__dirname, '../../', result.rows[0].file_url);
     fs.unlink(filePath, (err) => {
       if (err) console.error('Failed to delete file:', err);
     });
