@@ -111,6 +111,7 @@ export default function ItemDetailPage() {
         if (!confirm(t("deleteDocConfirm"))) return;
         try {
             await api.delete(`/documents/${docId}`)
+            setDocuments((prev) => prev.filter((i) => i.id !== docId))
         } catch (err) {
             setError(err instanceof Error ? err.message : t("failedDeleteDoc"));
         }
