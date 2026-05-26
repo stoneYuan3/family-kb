@@ -5,6 +5,7 @@ const collectionsRoutes = require('./routes/collections');
 const itemsRoutes = require('./routes/items');
 const documentsRoutes = require('./routes/documents');
 const authRoutes = require('./routes/auth');
+const boardRoutes = require('./routes/board')
 const path = require('path');
 
 const app = express()
@@ -24,6 +25,7 @@ app.use('/api/items', itemsRoutes);
 app.use('/api', documentsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/api/board', boardRoutes);
 
 app.get('/health', (req,res) => {
     res.json({status: 'ok'});

@@ -38,3 +38,9 @@ export interface Collection {
   title: string;
   parent_collection?: number;
 }
+
+export interface Board {
+  id: number;
+  week_start: Date;
+  created_at: string;
+}

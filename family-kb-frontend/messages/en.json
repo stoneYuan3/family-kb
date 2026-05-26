@@ -29,6 +29,7 @@
   "Sidebar": {
     "files": "Files",
     "users": "Users",
+    "board": "Calendar",
     "upload": "Upload",
     "signOut": "Sign out",
     "hello": "Hello, {name}",

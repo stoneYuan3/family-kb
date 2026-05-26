@@ -24,6 +24,7 @@ export default function DashboardLayout({
     const navItems = [
         { label: t("files"), href: "/dashboard/files", icon: Files },
         { label: t("users"), href: "/dashboard/users", icon: Users },
+        { label: t("board"), href: "/dashboard/board", icon: Users },
     ];
 
     useEffect(() => {

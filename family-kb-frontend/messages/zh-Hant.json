@@ -29,6 +29,7 @@
   "Sidebar": {
     "files": "檔案",
     "users": "使用者",
+    "board": "日程表",
     "upload": "上傳",
     "signOut": "登出",
     "hello": "你好，{name}",
