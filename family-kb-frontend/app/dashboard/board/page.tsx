@@ -1,4 +1,5 @@
 'use client'
+const { endOfWeek } = require("date-fns");
 
 import { useEffect, useState } from "react"
 import { api } from "@/lib/api";
@@ -35,7 +36,14 @@ export default function BoardPage() {
             <div>
                 {
                     board != null && (
-                        <h1>Week of {new Date(board.week_start).toLocaleDateString()}</h1>
+                        <div className="flex flex-col items-center">
+                            <h1 className="my-6">{new Date(board.week_start).toLocaleDateString()} - {endOfWeek(new Date(board.week_start)).toLocaleDateString()}</h1>
+                            <div className="w-full h-full mb-10 aspect-[14:9] canvas-wrapper">
+                                <svg viewBox="0 0 1400 900" className="bg-red-100">
+
+                                </svg>
+                            </div>
+                        </div>
                     )
                 }
                 
