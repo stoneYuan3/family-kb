@@ -108,7 +108,7 @@ export default function BoardPage() {
                                         ))}
                                         {/* Day labels */}
                                         {dayNames.map((name, i) => (
-                                            <text key={name} x={i * 200 + 100} y={50}
+                                            <text className="select-none pointer-events-none pointerdown" key={name} x={i * 200 + 100} y={50}
                                                 textAnchor="middle" fontSize={20} color="#c5c5c5">
                                                 {name}
                                             </text>
