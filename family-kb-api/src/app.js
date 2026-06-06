@@ -6,6 +6,7 @@ const itemsRoutes = require('./routes/items');
 const documentsRoutes = require('./routes/documents');
 const authRoutes = require('./routes/auth');
 const boardRoutes = require('./routes/board')
+const markRoutes = require('./routes/mark')
 const path = require('path');
 
 const app = express()

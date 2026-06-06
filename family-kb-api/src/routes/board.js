@@ -5,5 +5,6 @@ const authenticate = require('../middleware/authenticate');
 const { editorOnly } = require('../middleware/authorize');
 
 router.get("/current", authenticate, boardController.getCurrentBoard);
+router.post("/current", authenticate, editorOnly, boardController.AddNewMarkForBoard);
 
 module.exports = router;

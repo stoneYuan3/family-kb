@@ -38,6 +38,16 @@ const getCurrentBoard = async (req, res) => {
     }
 }
 
+const AddNewMarkForBoard = async (req,res) => {
+    try {
+        console.log(req.body)
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+}
+
 module.exports = {
-  getCurrentBoard
+  getCurrentBoard,
+  AddNewMarkForBoard
 };
