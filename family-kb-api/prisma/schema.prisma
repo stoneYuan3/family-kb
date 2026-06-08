@@ -63,13 +63,13 @@ model board {
 }
 
 model mark {
-  id         Int      @id @default(autoincrement())
-  boardId    Int
-  color      String
-  data       Json
-  isTaped    Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  board      board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  id          String   @id @db.Uuid
+  board_id    Int
+  color       String
+  data        Json
+  is_taped    Boolean  @default(false)
+  created_at  DateTime @default(now())
+  board       board    @relation(fields: [board_id], references: [id], onDelete: Cascade)
 }
 
 enum user_role {

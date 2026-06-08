@@ -37,3 +37,13 @@ export type item_collection = Prisma.item_collectionModel
  * 
  */
 export type users = Prisma.usersModel
+/**
+ * Model board
+ * 
+ */
+export type board = Prisma.boardModel
+/**
+ * Model mark
+ * 
+ */
+export type mark = Prisma.markModel

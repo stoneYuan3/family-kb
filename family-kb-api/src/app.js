@@ -27,6 +27,7 @@ app.use('/api', documentsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/board', boardRoutes);
+app.use('/api/mark', markRoutes);
 
 app.get('/health', (req,res) => {
     res.json({status: 'ok'});

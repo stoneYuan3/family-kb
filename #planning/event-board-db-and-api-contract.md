@@ -52,6 +52,7 @@ PATCH /api/board/:id [edit]
 
 Add new marks 
 POST /api/board/:id/marks [edit]
+or POST /api/board/current since people can only edit the current board, not historical boards
 
 Edit a specific mark on board (color)
 PATCH /api/mark/:id [edit]

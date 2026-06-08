@@ -9,11 +9,14 @@ import { getStroke } from 'perfect-freehand';
 import RadialReel, { type ReelMode } from "@/components/board/RadialReel";
 
 type StrokePoint = [number, number, number];
-type Stroke = { points: StrokePoint[]; color: string };
+type Stroke = { id: string; data: StrokePoint[]; color: string };
 type Mode = ReelMode;
 // CLAUDE: reel state — null when closed; otherwise the open point and the
 // currently hovered slice (decided by direction from the open point).
 type ReelState = { x: number; y: number; hovered: Mode | null } | null;
+// Backend mark shape: `data` is the JSONB column, stored as { points: [...] }.
+type MarkResponse = { id: string; color: string; data: { points: StrokePoint[] } };
+type BoardResult = { board: Board; marks: MarkResponse[] };
 
 // Movement must exceed this many viewport px before a slice is highlighted —
 // a quick right-click with no drag opens-then-closes without changing mode.
@@ -36,6 +39,8 @@ export default function BoardPage() {
     };
     const svgRef = useRef<SVGSVGElement | null>(null);
     const [strokes, setStrokes] = useState<Stroke[]>([]);
+    const [localStrokes, setLocalStrokes] = useState<Stroke[]>([])
+
     const [currentPoints, setCurrentPoints] = useState<StrokePoint[] | null>(null);
     const [mode, setMode] = useState<Mode>('draw');
     const [reel, setReel] = useState<ReelState>(null);
@@ -47,7 +52,7 @@ export default function BoardPage() {
     function findStrokeHitAt(point: StrokePoint, threshold = STROKE_OPTIONS.size * 1.5): number {
         const [px, py] = point;
         for (let i = 0; i < strokes.length; i++) {
-            const pts = strokes[i].points;
+            const pts = strokes[i].data;
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             for (const [x, y] of pts) {
                 if (x < minX) minX = x;
@@ -99,7 +104,11 @@ export default function BoardPage() {
         // Erase mode: primary press tries to delete a stroke at the cursor.
         if (mode === 'erase') {
             const hit = findStrokeHitAt(pt);
-            if (hit >= 0) setStrokes(prev => prev.filter((_, i) => i !== hit));
+            if (hit >= 0) {
+                const hitId = strokes[hit].id;
+                setStrokes(prev => prev.filter((_, i) => i !== hit));
+                deleteMark(hitId);
+            }
             return;
         }
 
@@ -125,7 +134,11 @@ export default function BoardPage() {
         if (mode === 'erase') {
             const pt = getLogicalPoint(event);
             const hit = findStrokeHitAt(pt);
-            if (hit >= 0) setStrokes(prev => prev.filter((_, i) => i !== hit));
+            if (hit >= 0) {
+                const hitId = strokes[hit].id;
+                setStrokes(prev => prev.filter((_, i) => i !== hit));
+                deleteMark(hitId);
+            }
             return;
         }
 
@@ -148,11 +161,16 @@ export default function BoardPage() {
             return;
         }
 
+        const currentStroke: Stroke = { id: crypto.randomUUID(), data: currentPoints, color: '#222' }
         // Commit the in-progress stroke to the strokes array.
         setStrokes(prev => [
             ...prev,
-            { points: currentPoints, color: '#222' },
+            currentStroke,
         ]);
+        pushMarks(currentStroke)
+        console.log(strokes)
+        console.log(localStrokes)
+        console.log({ points: currentPoints, color: '#222' })
         setCurrentPoints(null);
     }
 
@@ -164,20 +182,54 @@ export default function BoardPage() {
 
     const fetchBoard = async () => {
         try {
-            const res = await api.get<Board>(`/board/current`);
-            // if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res;
-            console.log(data)
-            setBoard(data)
+            const res = await api.get<BoardResult>(`/board/current`);
+            setBoard(res.board);
+            // Flatten the backend `{ data: { points } }` shape into the local
+            // Stroke where `data` is the points array directly.
+            setStrokes(
+                res.marks.map(m => ({
+                    id: m.id,
+                    color: m.color,
+                    data: m.data.points,
+                }))
+            );
         } catch (err: any) {
             setError(err.message);
         } finally {
             setLoading(false);
         }
     }
+    const pushMarks = async (marks:Stroke) => {
+        try {
+            // push every marks in marks to backend using
+            // const res = await api.post<Board>(`/board/current`);
+            //see family-kb-api for details
+            const res = await api.post<Board>(`/board/current`, {
+                body: marks
+            });
+            console.log(res)
+
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+    // Fire-and-forget delete. UI already updated optimistically by the caller.
+    const deleteMark = async (id: string) => {
+        try {
+            await api.delete(`/mark/${id}`);
+        } catch (err: any) {
+            console.error('Failed to delete mark', id, err);
+        }
+    }
     useEffect(() => {
         fetchBoard();
     }, [])
+    // useEffect(() => {
+    //     // if localStrokes is not empty
+    //     pushMarks(localStrokes)
+    // }, [localStrokes, setLocalStrokes])
 
     if (loading) return <p>Loading board…</p>;
     if (error) return <p>Error: {error}</p>;
@@ -224,7 +276,14 @@ export default function BoardPage() {
                                         {strokes.map((stroke, i) => (
                                             <path
                                                 key={i}
-                                                d={getSvgFromStroke(getStroke(stroke.points, STROKE_OPTIONS))}
+                                                d={getSvgFromStroke(getStroke(stroke.data, STROKE_OPTIONS))}
+                                                fill={stroke.color}
+                                            />
+                                        ))}
+                                        {localStrokes.map((stroke, i) => (
+                                            <path
+                                                key={i}
+                                                d={getSvgFromStroke(getStroke(stroke.data, STROKE_OPTIONS))}
                                                 fill={stroke.color}
                                             />
                                         ))}

@@ -387,7 +387,9 @@ export const ModelName = {
   document: 'document',
   item: 'item',
   item_collection: 'item_collection',
-  users: 'users'
+  users: 'users',
+  board: 'board',
+  mark: 'mark'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -403,7 +405,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "document" | "item" | "item_collection" | "users"
+    modelProps: "document" | "item" | "item_collection" | "users" | "board" | "mark"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -703,6 +705,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    board: {
+      payload: Prisma.$boardPayload<ExtArgs>
+      fields: Prisma.boardFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.boardFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.boardFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>
+        }
+        findFirst: {
+          args: Prisma.boardFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.boardFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>
+        }
+        findMany: {
+          args: Prisma.boardFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>[]
+        }
+        create: {
+          args: Prisma.boardCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>
+        }
+        createMany: {
+          args: Prisma.boardCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.boardCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>[]
+        }
+        delete: {
+          args: Prisma.boardDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>
+        }
+        update: {
+          args: Prisma.boardUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>
+        }
+        deleteMany: {
+          args: Prisma.boardDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.boardUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.boardUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>[]
+        }
+        upsert: {
+          args: Prisma.boardUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$boardPayload>
+        }
+        aggregate: {
+          args: Prisma.BoardAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateBoard>
+        }
+        groupBy: {
+          args: Prisma.boardGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.BoardGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.boardCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.BoardCountAggregateOutputType> | number
+        }
+      }
+    }
+    mark: {
+      payload: Prisma.$markPayload<ExtArgs>
+      fields: Prisma.markFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.markFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.markFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>
+        }
+        findFirst: {
+          args: Prisma.markFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.markFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>
+        }
+        findMany: {
+          args: Prisma.markFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>[]
+        }
+        create: {
+          args: Prisma.markCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>
+        }
+        createMany: {
+          args: Prisma.markCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.markCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>[]
+        }
+        delete: {
+          args: Prisma.markDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>
+        }
+        update: {
+          args: Prisma.markUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>
+        }
+        deleteMany: {
+          args: Prisma.markDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.markUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.markUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>[]
+        }
+        upsert: {
+          args: Prisma.markUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$markPayload>
+        }
+        aggregate: {
+          args: Prisma.MarkAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMark>
+        }
+        groupBy: {
+          args: Prisma.markGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MarkGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.markCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MarkCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -792,12 +942,40 @@ export const UsersScalarFieldEnum = {
 export type UsersScalarFieldEnum = (typeof UsersScalarFieldEnum)[keyof typeof UsersScalarFieldEnum]
 
 
+export const BoardScalarFieldEnum = {
+  id: 'id',
+  week_start: 'week_start',
+  created_at: 'created_at'
+} as const
+
+export type BoardScalarFieldEnum = (typeof BoardScalarFieldEnum)[keyof typeof BoardScalarFieldEnum]
+
+
+export const MarkScalarFieldEnum = {
+  id: 'id',
+  board_id: 'board_id',
+  color: 'color',
+  data: 'data',
+  is_taped: 'is_taped',
+  created_at: 'created_at'
+} as const
+
+export type MarkScalarFieldEnum = (typeof MarkScalarFieldEnum)[keyof typeof MarkScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
 } as const
 
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -814,6 +992,15 @@ export const NullsOrder = {
 } as const
 
 export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 
 
 
@@ -875,6 +1062,27 @@ export type Enumuser_roleFieldRefInput<$PrismaModel> = FieldRefInputType<$Prisma
  * Reference to a field of type 'user_role[]'
  */
 export type ListEnumuser_roleFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'user_role[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Json'
+ */
+export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
+    
+
+
+/**
+ * Reference to a field of type 'QueryMode'
+ */
+export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
+    
+
+
+/**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 
@@ -1005,6 +1213,8 @@ export type GlobalOmitConfig = {
   item?: Prisma.itemOmit
   item_collection?: Prisma.item_collectionOmit
   users?: Prisma.usersOmit
+  board?: Prisma.boardOmit
+  mark?: Prisma.markOmit
 }
 
 /* Types for Logging */
