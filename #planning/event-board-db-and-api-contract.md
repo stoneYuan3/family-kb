@@ -14,7 +14,7 @@ data: JSONB NOT NULL
 is_taped    BOOLEAN NOT NULL DEFAULT FALSE,
 created_at TIMESTAMP DEFAULT NOW()
 
-CREATE TABLE tape (
+<!-- CREATE TABLE tape (
   id          SERIAL PRIMARY KEY,
   board_id    INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
   x           REAL NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE tape (
   width       REAL NOT NULL,
   height      REAL NOT NULL,
   created_at  TIMESTAMP DEFAULT NOW()
-);
+); -->
 
 Color Set
 id: autogen
@@ -50,9 +50,10 @@ POST /api/board/:date [any] //auto action every new week
 Edit a board //not sure where this can be used but i do think this may be needed in future
 PATCH /api/board/:id [edit]
 
-Add new marks 
-POST /api/board/:id/marks [edit]
-or POST /api/board/current since people can only edit the current board, not historical boards
+Add new marks
+POST /api/board/current 
+<!-- POST /api/board/:id/marks [edit] -->
+<!-- or POST /api/board/current since people can only edit the current board, not historical boards -->
 
 Edit a specific mark on board (color)
 PATCH /api/mark/:id [edit]

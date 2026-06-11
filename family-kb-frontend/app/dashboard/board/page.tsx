@@ -6,21 +6,20 @@ import { api } from "@/lib/api";
 import type { Board } from "@/types";
 import { getSvgFromStroke } from "@/lib/svgPath";
 import { getStroke } from 'perfect-freehand';
-import RadialReel, { type ReelMode } from "@/components/board/RadialReel";
+import RadialReel from "@/components/board/RadialReel";
+import { Pen, Bookmark } from "lucide-react";
+import {
+    useWriteMode,
+    useTapeMode,
+    type Stroke,
+    type StrokePoint,
+    type Mode,
+    type ReelState,
+    type MarkResponse,
+} from "./useBoardHandlers";
 
-type StrokePoint = [number, number, number];
-type Stroke = { id: string; data: StrokePoint[]; color: string };
-type Mode = ReelMode;
-// CLAUDE: reel state — null when closed; otherwise the open point and the
-// currently hovered slice (decided by direction from the open point).
-type ReelState = { x: number; y: number; hovered: Mode | null } | null;
-// Backend mark shape: `data` is the JSONB column, stored as { points: [...] }.
-type MarkResponse = { id: string; color: string; data: { points: StrokePoint[] } };
+type InputMode = "write" | "tape";
 type BoardResult = { board: Board; marks: MarkResponse[] };
-
-// Movement must exceed this many viewport px before a slice is highlighted —
-// a quick right-click with no drag opens-then-closes without changing mode.
-const REEL_DEADZONE_PX = 12;
 
 export default function BoardPage() {
 
@@ -39,146 +38,11 @@ export default function BoardPage() {
     };
     const svgRef = useRef<SVGSVGElement | null>(null);
     const [strokes, setStrokes] = useState<Stroke[]>([]);
-    const [localStrokes, setLocalStrokes] = useState<Stroke[]>([])
 
     const [currentPoints, setCurrentPoints] = useState<StrokePoint[] | null>(null);
     const [mode, setMode] = useState<Mode>('draw');
+    const [inputMode, setInputMode] = useState<InputMode>("write")
     const [reel, setReel] = useState<ReelState>(null);
-
-    // CLAUDE: stroke-level eraser hit-test. Returns the index of the first
-    // stroke whose polyline passes within `threshold` logical units of the
-    // cursor, or -1 if none. Cheap bbox reject first, then per-segment
-    // distance check.
-    function findStrokeHitAt(point: StrokePoint, threshold = STROKE_OPTIONS.size * 1.5): number {
-        const [px, py] = point;
-        for (let i = 0; i < strokes.length; i++) {
-            const pts = strokes[i].data;
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            for (const [x, y] of pts) {
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-            }
-            if (px < minX - threshold || px > maxX + threshold ||
-                py < minY - threshold || py > maxY + threshold) continue;
-            for (let s = 0; s < pts.length - 1; s++) {
-                const [x1, y1] = pts[s];
-                const [x2, y2] = pts[s + 1];
-                const dx = x2 - x1, dy = y2 - y1;
-                const len2 = dx * dx + dy * dy;
-                if (len2 === 0) continue;
-                let t = ((px - x1) * dx + (py - y1) * dy) / len2;
-                t = Math.max(0, Math.min(1, t));
-                const cx = x1 + t * dx;
-                const cy = y1 + t * dy;
-                const d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy);
-                if (d2 <= threshold * threshold) return i;
-            }
-        }
-        return -1;
-    }
-
-    function getLogicalPoint(event: React.PointerEvent<SVGSVGElement>): StrokePoint {
-        const rect = svgRef.current!.getBoundingClientRect();
-        return [
-            ((event.clientX - rect.left) / rect.width) * LOGICAL_WIDTH,
-            ((event.clientY - rect.top) / rect.height) * LOGICAL_HEIGHT,
-            event.pressure || 0.5,
-        ]
-    }
-    function handlePointerDown(event: React.PointerEvent<SVGSVGElement>) {
-        // Right button (or stylus barrel button) opens the radial reel.
-        if (event.button === 2) {
-            event.preventDefault();
-            event.currentTarget.setPointerCapture(event.pointerId);
-            setReel({ x: event.clientX, y: event.clientY, hovered: null });
-            return;
-        }
-
-        // Capture the pointer so we keep receiving events even if the
-        // finger/cursor leaves the SVG bounds during drawing.
-        event.currentTarget.setPointerCapture(event.pointerId);
-        const pt = getLogicalPoint(event);
-
-        // Erase mode: primary press tries to delete a stroke at the cursor.
-        if (mode === 'erase') {
-            const hit = findStrokeHitAt(pt);
-            if (hit >= 0) {
-                const hitId = strokes[hit].id;
-                setStrokes(prev => prev.filter((_, i) => i !== hit));
-                deleteMark(hitId);
-            }
-            return;
-        }
-
-        setCurrentPoints([pt]);
-    }
-    function handlePointerMove(event: React.PointerEvent<SVGSVGElement>) {
-        // Reel open: highlight the slice based on direction from the open
-        // point. Left of center = draw, right of center = erase. A small
-        // dead-zone keeps `hovered` null for tiny mouse jitter.
-        if (reel) {
-            const dx = event.clientX - reel.x;
-            const dy = event.clientY - reel.y;
-            const dist = Math.hypot(dx, dy);
-            const hovered: Mode | null =
-                dist < REEL_DEADZONE_PX ? null : (dx < 0 ? 'draw' : 'erase');
-            if (hovered !== reel.hovered) setReel({ ...reel, hovered });
-            return;
-        }
-
-        // Only draw/erase when the primary button is pressed.
-        if (event.buttons !== 1) return;
-
-        if (mode === 'erase') {
-            const pt = getLogicalPoint(event);
-            const hit = findStrokeHitAt(pt);
-            if (hit >= 0) {
-                const hitId = strokes[hit].id;
-                setStrokes(prev => prev.filter((_, i) => i !== hit));
-                deleteMark(hitId);
-            }
-            return;
-        }
-
-        if (!currentPoints) return;
-        setCurrentPoints(prev => (prev ? [...prev, getLogicalPoint(event)] : [getLogicalPoint(event)]));
-    }
-
-    function handlePointerUp() {
-        // Reel was open: commit the hovered slice (if any) and close.
-        if (reel) {
-            if (reel.hovered) setMode(reel.hovered);
-            setReel(null);
-            return;
-        }
-
-        if (mode === 'erase') return;
-
-        if (!currentPoints || currentPoints.length === 0) {
-            setCurrentPoints(null);
-            return;
-        }
-
-        const currentStroke: Stroke = { id: crypto.randomUUID(), data: currentPoints, color: '#222' }
-        // Commit the in-progress stroke to the strokes array.
-        setStrokes(prev => [
-            ...prev,
-            currentStroke,
-        ]);
-        pushMarks(currentStroke)
-        console.log(strokes)
-        console.log(localStrokes)
-        console.log({ points: currentPoints, color: '#222' })
-        setCurrentPoints(null);
-    }
-
-    function handlePointerCancel() {
-        // Tablet/touch can drop a gesture mid-stream — clean up both states.
-        setReel(null);
-        setCurrentPoints(null);
-    }
 
     const fetchBoard = async () => {
         try {
@@ -199,37 +63,24 @@ export default function BoardPage() {
             setLoading(false);
         }
     }
-    const pushMarks = async (marks:Stroke) => {
-        try {
-            // push every marks in marks to backend using
-            // const res = await api.post<Board>(`/board/current`);
-            //see family-kb-api for details
-            const res = await api.post<Board>(`/board/current`, {
-                body: marks
-            });
-            console.log(res)
-
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    }
-    // Fire-and-forget delete. UI already updated optimistically by the caller.
-    const deleteMark = async (id: string) => {
-        try {
-            await api.delete(`/mark/${id}`);
-        } catch (err: any) {
-            console.error('Failed to delete mark', id, err);
-        }
-    }
     useEffect(() => {
         fetchBoard();
     }, [])
-    // useEffect(() => {
-    //     // if localStrokes is not empty
-    //     pushMarks(localStrokes)
-    // }, [localStrokes, setLocalStrokes])
+
+    // CLAUDE: per-mode pointer-event handlers. Both hooks must be called every
+    // render (rules of hooks) — `handlers` picks the active bundle.
+    const deps = {
+        svgRef,
+        strokes, setStrokes,
+        currentPoints, setCurrentPoints,
+        mode, setMode,
+        reel, setReel,
+        setError,
+        LOGICAL_WIDTH, LOGICAL_HEIGHT, STROKE_OPTIONS,
+    };
+    const writeHandlers = useWriteMode(deps);
+    const tapeHandlers = useTapeMode(deps);
+    const handlers = inputMode === 'write' ? writeHandlers : tapeHandlers;
 
     if (loading) return <p>Loading board…</p>;
     if (error) return <p>Error: {error}</p>;
@@ -246,16 +97,34 @@ export default function BoardPage() {
                 {
                     board != null && (
                         <div className="flex flex-col items-center">
-                            <h1 className="my-6">{new Date(board.week_start).toLocaleDateString()} - {endOfWeek(new Date(board.week_start)).toLocaleDateString()}</h1>
+                            <div className="flex w-full max-w-[800px] justify-between mx-4 items-center">
+                                <h1 className="my-6">{new Date(board.week_start).toLocaleDateString()} - {endOfWeek(new Date(board.week_start)).toLocaleDateString()}</h1>
+                                <div className="flex gap-[32px] items-center">
+                                    <button
+                                        aria-label="Write"
+                                        onClick={() => setInputMode("write")}
+                                        className={`h-fit rounded-full px-3 py-2 ${inputMode === "write" ? "bg-black text-white" : ""}`}
+                                    >
+                                        <Pen />
+                                    </button>
+                                    <button
+                                        aria-label="Tape"
+                                        onClick={() => setInputMode("tape")}
+                                        className={`h-fit rounded-full px-3 py-2 ${inputMode === "tape" ? "bg-black text-white" : ""}`}
+                                    >
+                                        <Bookmark />
+                                    </button>
+                                </div>
+                            </div>    
                             <div className="w-full h-full mb-10 aspect-[14:9] canvas-wrapper">
                                 <svg
                                     viewBox={`0 0 ${LOGICAL_WIDTH} ${LOGICAL_HEIGHT}`} className="border-4 border-grey-100 rounded-md mx-4"
                                     style={{ cursor: svgCursor }}
                                     ref={svgRef}
-                                    onPointerDown={handlePointerDown}
-                                    onPointerMove={handlePointerMove}
-                                    onPointerUp={handlePointerUp}
-                                    onPointerCancel={handlePointerCancel}
+                                    onPointerDown={handlers.onPointerDown}
+                                    onPointerMove={handlers.onPointerMove}
+                                    onPointerUp={handlers.onPointerUp}
+                                    onPointerCancel={handlers.onPointerCancel}
                                     onContextMenu={(e) => e.preventDefault()}
                                 >
                                     <g className="calendar-grid">
@@ -278,16 +147,9 @@ export default function BoardPage() {
                                                 key={i}
                                                 d={getSvgFromStroke(getStroke(stroke.data, STROKE_OPTIONS))}
                                                 fill={stroke.color}
+                                                className="bg-red-500"
                                             />
                                         ))}
-                                        {localStrokes.map((stroke, i) => (
-                                            <path
-                                                key={i}
-                                                d={getSvgFromStroke(getStroke(stroke.data, STROKE_OPTIONS))}
-                                                fill={stroke.color}
-                                            />
-                                        ))}
-
                                         {/* Render the in-progress stroke if there is one */}
                                         {currentPoints && (
                                             <path
