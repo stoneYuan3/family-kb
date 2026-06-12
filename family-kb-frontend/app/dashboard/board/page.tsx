@@ -16,6 +16,7 @@ import {
     type Mode,
     type ReelState,
     type MarkResponse,
+    type DragBox,
 } from "./useBoardHandlers";
 
 type InputMode = "write" | "tape";
@@ -43,6 +44,11 @@ export default function BoardPage() {
     const [mode, setMode] = useState<Mode>('draw');
     const [inputMode, setInputMode] = useState<InputMode>("write")
     const [reel, setReel] = useState<ReelState>(null);
+    const [dragBox, setDragBox] = useState<DragBox>(null);
+
+    // CLAUDE: kill any in-flight drag-box when switching input modes so a
+    // tape-mode rectangle doesn't persist into write mode.
+    useEffect(() => { setDragBox(null); }, [inputMode]);
 
     const fetchBoard = async () => {
         try {
@@ -76,6 +82,7 @@ export default function BoardPage() {
         mode, setMode,
         reel, setReel,
         setError,
+        dragBox, setDragBox,
         LOGICAL_WIDTH, LOGICAL_HEIGHT, STROKE_OPTIONS,
     };
     const writeHandlers = useWriteMode(deps);
@@ -85,11 +92,14 @@ export default function BoardPage() {
     if (loading) return <p>Loading board…</p>;
     if (error) return <p>Error: {error}</p>;
 
-    // CLAUDE: cursor swaps with mode. Hotspot offsets are tuned to the tip of
-    // each lucide icon stored in /public/cursors/.
-    const svgCursor = mode === 'draw'
-        ? "url('/cursors/pen.svg') 3 21, crosshair"
-        : "url('/cursors/eraser.svg') 5 18, crosshair";
+    // CLAUDE: cursor swaps with input mode (tape takes priority), then with
+    // write-mode's draw/erase sub-mode. Hotspot offsets are tuned to each icon
+    // stored in /public/cursors/.
+    const svgCursor = inputMode === 'tape'
+        ? "url('/cursors/tape.svg') 16 16, crosshair"
+        : mode === 'draw'
+            ? "url('/cursors/pen.svg') 3 21, crosshair"
+            : "url('/cursors/eraser.svg') 5 18, crosshair";
 
     return (
         <>
@@ -155,6 +165,20 @@ export default function BoardPage() {
                                             <path
                                                 d={getSvgFromStroke(getStroke(currentPoints, STROKE_OPTIONS))}
                                                 fill="#222"
+                                            />
+                                        )}
+                                        {/* CLAUDE: tape-mode drag-select rectangle. */}
+                                        {dragBox && (
+                                            <rect
+                                                x={Math.min(dragBox.start[0], dragBox.current[0])}
+                                                y={Math.min(dragBox.start[1], dragBox.current[1])}
+                                                width={Math.abs(dragBox.start[0] - dragBox.current[0])}
+                                                height={Math.abs(dragBox.start[1] - dragBox.current[1])}
+                                                fill="rgba(59, 130, 246, 0.08)"
+                                                stroke="rgba(59, 130, 246, 0.7)"
+                                                strokeWidth={1}
+                                                strokeDasharray="4 2"
+                                                pointerEvents="none"
                                             />
                                         )}
                                     </g>

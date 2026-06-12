@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Diagonal masking-tape strip. Hotspot at (16,16) — center of the strip. -->
+  <path d="M 4 22 L 12 8 L 30 12 L 22 26 Z"
+        fill="#fde68a" fill-opacity="0.9"
+        stroke="#b45309" stroke-width="1.5"
+        stroke-linejoin="round"/>
+  <!-- Subtle edge marks suggesting torn/adhesive ends. -->
+  <line x1="6" y1="20" x2="11" y2="10" stroke="#92400e" stroke-width="0.6" stroke-opacity="0.55" stroke-dasharray="1.5 1.5"/>
+  <line x1="23" y1="25" x2="28" y2="14" stroke="#92400e" stroke-width="0.6" stroke-opacity="0.55" stroke-dasharray="1.5 1.5"/>
+</svg>

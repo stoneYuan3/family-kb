@@ -20,6 +20,10 @@ export type MarkResponse = {
     color: string;
     data: { points: StrokePoint[] };
 };
+// CLAUDE: tape-mode drag-select rectangle. Storing start + current (not
+// x/y/w/h) keeps the math symmetric for drags in any direction — derive the
+// rect at render time via Math.min / Math.abs.
+export type DragBox = { start: StrokePoint; current: StrokePoint } | null;
 
 export type BoardHandlers = {
     onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void;
@@ -41,6 +45,8 @@ export type BoardHandlerDeps = {
     reel: ReelState;
     setReel: React.Dispatch<React.SetStateAction<ReelState>>;
     setError: React.Dispatch<React.SetStateAction<string | null>>;
+    dragBox: DragBox;
+    setDragBox: React.Dispatch<React.SetStateAction<DragBox>>;
     LOGICAL_WIDTH: number;
     LOGICAL_HEIGHT: number;
     STROKE_OPTIONS: {
@@ -56,6 +62,22 @@ export type BoardHandlerDeps = {
 // Movement must exceed this many viewport px before a slice is highlighted —
 // a quick right-click with no drag opens-then-closes without changing mode.
 const REEL_DEADZONE_PX = 12;
+
+// CLAUDE: shared between write and tape modes. Converts a pointer event's
+// viewport coords into the SVG's logical (viewBox) coords.
+function getLogicalPoint(
+    event: React.PointerEvent<SVGSVGElement>,
+    svgRef: React.RefObject<SVGSVGElement | null>,
+    logicalWidth: number,
+    logicalHeight: number,
+): StrokePoint {
+    const rect = svgRef.current!.getBoundingClientRect();
+    return [
+        ((event.clientX - rect.left) / rect.width) * logicalWidth,
+        ((event.clientY - rect.top) / rect.height) * logicalHeight,
+        event.pressure || 0.5,
+    ];
+}
 
 export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
     const {
@@ -137,17 +159,6 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         return -1;
     }
 
-    function getLogicalPoint(
-        event: React.PointerEvent<SVGSVGElement>
-    ): StrokePoint {
-        const rect = svgRef.current!.getBoundingClientRect();
-        return [
-            ((event.clientX - rect.left) / rect.width) * LOGICAL_WIDTH,
-            ((event.clientY - rect.top) / rect.height) * LOGICAL_HEIGHT,
-            event.pressure || 0.5,
-        ];
-    }
-
     function onPointerDown(event: React.PointerEvent<SVGSVGElement>) {
         // Right button (or stylus barrel button) opens the radial reel.
         if (event.button === 2) {
@@ -159,7 +170,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         // Capture the pointer so we keep receiving events even if the
         // finger/cursor leaves the SVG bounds during drawing.
         event.currentTarget.setPointerCapture(event.pointerId);
-        const pt = getLogicalPoint(event);
+        const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
         // Erase mode: primary press tries to delete a stroke at the cursor.
         if (mode === "erase") {
             const hit = findStrokeHitAt(pt);
@@ -191,7 +202,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         if (event.buttons !== 1) return;
 
         if (mode === "erase") {
-            const pt = getLogicalPoint(event);
+            const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
             const hit = findStrokeHitAt(pt);
             if (hit >= 0) {
                 const hitId = strokes[hit].id;
@@ -202,9 +213,8 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         }
 
         if (!currentPoints) return;
-        setCurrentPoints((prev) =>
-            prev ? [...prev, getLogicalPoint(event)] : [getLogicalPoint(event)]
-        );
+        const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        setCurrentPoints((prev) => (prev ? [...prev, pt] : [pt]));
     }
 
     function onPointerUp() {
@@ -244,22 +254,28 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
 
 // ---- tape mode -----------------------------------------------------------
 
-// CLAUDE: stub. Same signature as useWriteMode so the JSX binding doesn't
-// care which mode is active. Mechanism TBD — fill in onPointerDown/Move/Up
-// when the tape feature is designed.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function useTapeMode(_deps: BoardHandlerDeps): BoardHandlers {
-    function onPointerDown(_event: React.PointerEvent<SVGSVGElement>) {
-        // TBD: tape mode pointer-down behavior.
+// CLAUDE: tape mode currently draws a rubber-band selection rectangle on
+// drag. Selection semantics (which strokes get tagged) are not yet wired.
+export function useTapeMode(deps: BoardHandlerDeps): BoardHandlers {
+    const { svgRef, dragBox, setDragBox, LOGICAL_WIDTH, LOGICAL_HEIGHT } = deps;
+
+    function onPointerDown(event: React.PointerEvent<SVGSVGElement>) {
+        // Only primary button starts a drag-select.
+        if (event.button !== 0) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        setDragBox({ start: pt, current: pt });
     }
-    function onPointerMove(_event: React.PointerEvent<SVGSVGElement>) {
-        // TBD: tape mode pointer-move behavior.
+    function onPointerMove(event: React.PointerEvent<SVGSVGElement>) {
+        if (!dragBox) return;
+        const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        setDragBox({ start: dragBox.start, current: pt });
     }
     function onPointerUp() {
-        // TBD: tape mode pointer-up behavior.
+        setDragBox(null);
     }
     function onPointerCancel() {
-        // TBD: tape mode pointer-cancel behavior.
+        setDragBox(null);
     }
 
     return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel };
