@@ -1,20 +1,30 @@
 'use client'
 // CLAUDE: radial "functionality reel" shown while the right mouse button is
 // held on the board. Visual only — the board page handles pointer math and
-// commits the highlighted slice on right-button release.
-import { Pen, Eraser } from 'lucide-react';
+// commits the highlighted slice on right-button release. Generic over its two
+// slices so both write mode (Write | Erase) and tape mode (Tape | Untape)
+// reuse it: callers pass the icon, label, and active fill for each half.
+import type { ReactNode } from 'react';
 
-export type ReelMode = 'draw' | 'erase';
+// One half-disc of the reel.
+export interface ReelSlice {
+    icon: ReactNode;
+    label: string;
+    activeColor: string;   // fill when this side is hovered
+}
 
 interface Props {
     x: number;            // viewport px where the reel opened
     y: number;
-    hovered: ReelMode | null;
+    hovered: 'left' | 'right' | null;
+    left: ReelSlice;
+    right: ReelSlice;
 }
 
 const RADIUS = 52;
+const IDLE_FILL = 'rgba(255,255,255,0.92)';
 
-export default function RadialReel({ x, y, hovered }: Props) {
+export default function RadialReel({ x, y, hovered, left, right }: Props) {
     return (
         <div
             className="fixed z-50 pointer-events-none -translate-x-1/2 -translate-y-1/2 drop-shadow-md"
@@ -26,17 +36,17 @@ export default function RadialReel({ x, y, hovered }: Props) {
                 width={RADIUS * 2}
                 height={RADIUS * 2}
             >
-                {/* Left half — write/draw */}
+                {/* Left half */}
                 <path
                     d={`M 0 -${RADIUS} A ${RADIUS} ${RADIUS} 0 0 0 0 ${RADIUS} Z`}
-                    fill={hovered === 'draw' ? 'rgba(59,130,246,0.92)' : 'rgba(255,255,255,0.92)'}
+                    fill={hovered === 'left' ? left.activeColor : IDLE_FILL}
                     stroke="#1f2937"
                     strokeWidth={1.5}
                 />
-                {/* Right half — erase */}
+                {/* Right half */}
                 <path
                     d={`M 0 -${RADIUS} A ${RADIUS} ${RADIUS} 0 0 1 0 ${RADIUS} Z`}
-                    fill={hovered === 'erase' ? 'rgba(253,224,71,0.95)' : 'rgba(255,255,255,0.92)'}
+                    fill={hovered === 'right' ? right.activeColor : IDLE_FILL}
                     stroke="#1f2937"
                     strokeWidth={1.5}
                 />
@@ -45,12 +55,12 @@ export default function RadialReel({ x, y, hovered }: Props) {
             {/* Icons + labels overlaid on each half */}
             <div className="absolute inset-0 flex items-center justify-between px-3 text-gray-800">
                 <div className="flex flex-col items-center gap-1">
-                    <Pen className="w-5 h-5" />
-                    <span className="text-[10px] font-medium">Write</span>
+                    {left.icon}
+                    <span className="text-[10px] font-medium">{left.label}</span>
                 </div>
                 <div className="flex flex-col items-center gap-1">
-                    <Eraser className="w-5 h-5" />
-                    <span className="text-[10px] font-medium">Erase</span>
+                    {right.icon}
+                    <span className="text-[10px] font-medium">{right.label}</span>
                 </div>
             </div>
         </div>

@@ -7,7 +7,7 @@ import type { Board } from "@/types";
 import { getSvgFromStroke } from "@/lib/svgPath";
 import { getStroke } from 'perfect-freehand';
 import RadialReel from "@/components/board/RadialReel";
-import { Pen, Bookmark } from "lucide-react";
+import { Pen, Bookmark, Eraser, BookmarkPlus, BookmarkMinus } from "lucide-react";
 import {
     useWriteMode,
     useTapeMode,
@@ -16,6 +16,7 @@ import {
     type Stroke,
     type StrokePoint,
     type Mode,
+    type TapeMode,
     type ReelState,
     type MarkResponse,
     type DragBox,
@@ -44,6 +45,7 @@ export default function BoardPage() {
 
     const [currentPoints, setCurrentPoints] = useState<StrokePoint[] | null>(null);
     const [mode, setMode] = useState<Mode>('draw');
+    const [tapeMode, setTapeMode] = useState<TapeMode>('select');
     const [inputMode, setInputMode] = useState<InputMode>("write")
     const [reel, setReel] = useState<ReelState>(null);
     const [dragBox, setDragBox] = useState<DragBox>(null);
@@ -85,6 +87,7 @@ export default function BoardPage() {
         currentPoints, setCurrentPoints,
         mode, setMode,
         reel, setReel,
+        tapeMode, setTapeMode,
         setError,
         dragBox, setDragBox,
         LOGICAL_WIDTH, LOGICAL_HEIGHT, STROKE_OPTIONS,
@@ -97,20 +100,23 @@ export default function BoardPage() {
     if (error) return <p>Error: {error}</p>;
 
     // CLAUDE: live preview of which strokes the in-progress tape box touches.
-    // Committed taped strokes (stroke.is_taped) render regardless; this set adds
-    // the not-yet-released ones so the highlight tracks the drag.
+    // Only in the "select" sub-mode (de-select is point-based, no box). Committed
+    // taped strokes render regardless; this set adds the not-yet-released ones so
+    // the highlight tracks the drag.
     const previewIds =
-        inputMode === 'tape' && dragBox
+        inputMode === 'tape' && tapeMode === 'select' && dragBox
             ? new Set(findStrokesInBox(dragBox, strokes))
             : null;
     // Pad the highlight box so the strip comfortably covers the rendered ink.
     const TAPE_PAD = STROKE_OPTIONS.size;
 
-    // CLAUDE: cursor swaps with input mode (tape takes priority), then with
-    // write-mode's draw/erase sub-mode. Hotspot offsets are tuned to each icon
-    // stored in /public/cursors/.
+    // CLAUDE: cursor swaps with input mode (tape takes priority), then with each
+    // mode's sub-mode. Tape de-select reuses the eraser cursor (removal). Hotspot
+    // offsets are tuned to each icon stored in /public/cursors/.
     const svgCursor = inputMode === 'tape'
-        ? "url('/cursors/tape.svg') 16 16, crosshair"
+        ? tapeMode === 'select'
+            ? "url('/cursors/tape.svg') 16 16, crosshair"
+            : "url('/cursors/eraser.svg') 5 18, crosshair"
         : mode === 'draw'
             ? "url('/cursors/pen.svg') 3 21, crosshair"
             : "url('/cursors/eraser.svg') 5 18, crosshair";
@@ -181,8 +187,7 @@ export default function BoardPage() {
                                                     width={maxX - minX + TAPE_PAD * 2}
                                                     height={maxY - minY + TAPE_PAD * 2}
                                                     rx={6}
-                                                    fill="#fde68a"
-                                                    opacity={0.5}
+                                                    fill="#FCF0C2"
                                                     pointerEvents="none"
                                                 />
                                             );
@@ -225,8 +230,22 @@ export default function BoardPage() {
                 }
             </div>
 
-            {/* CLAUDE: radial reel — rendered while the right button is held. */}
-            {reel && <RadialReel x={reel.x} y={reel.y} hovered={reel.hovered} />}
+            {/* CLAUDE: radial reel — rendered while the right button is held.
+                Slice descriptors depend on the active input mode: write toggles
+                Write|Erase, tape toggles Tape|Untape. */}
+            {reel && (
+                inputMode === 'write'
+                    ? <RadialReel
+                        x={reel.x} y={reel.y} hovered={reel.hovered}
+                        left={{ icon: <Pen className="w-5 h-5" />, label: "Write", activeColor: "rgba(59,130,246,0.92)" }}
+                        right={{ icon: <Eraser className="w-5 h-5" />, label: "Erase", activeColor: "rgba(253,224,71,0.95)" }}
+                    />
+                    : <RadialReel
+                        x={reel.x} y={reel.y} hovered={reel.hovered}
+                        left={{ icon: <BookmarkPlus className="w-5 h-5" />, label: "Tape", activeColor: "rgba(59,130,246,0.92)" }}
+                        right={{ icon: <BookmarkMinus className="w-5 h-5" />, label: "Untape", activeColor: "rgba(253,224,71,0.95)" }}
+                    />
+            )}
         </>
     )
 }

@@ -17,7 +17,12 @@ export type StrokePoint = [number, number, number];
 // the stroke itself rather than a transient selection set.
 export type Stroke = { id: string; data: StrokePoint[]; color: string; is_taped?: boolean };
 export type Mode = "draw" | "erase";
-export type ReelState = { x: number; y: number; hovered: Mode | null } | null;
+// CLAUDE: tape-mode sub-mode, toggled by the radial reel like write's draw/erase.
+export type TapeMode = "select" | "deselect";
+// CLAUDE: reel state is pure geometry — `hovered` is which half-disc the cursor
+// is over. Each mode maps left/right to its own sub-mode on commit (write →
+// draw/erase, tape → select/deselect).
+export type ReelState = { x: number; y: number; hovered: "left" | "right" | null } | null;
 export type MarkResponse = {
     id: string;
     color: string;
@@ -48,6 +53,8 @@ export type BoardHandlerDeps = {
     setMode: React.Dispatch<React.SetStateAction<Mode>>;
     reel: ReelState;
     setReel: React.Dispatch<React.SetStateAction<ReelState>>;
+    tapeMode: TapeMode;
+    setTapeMode: React.Dispatch<React.SetStateAction<TapeMode>>;
     setError: React.Dispatch<React.SetStateAction<string | null>>;
     dragBox: DragBox;
     setDragBox: React.Dispatch<React.SetStateAction<DragBox>>;
@@ -97,6 +104,47 @@ export function getStrokeBounds(points: StrokePoint[]) {
         if (y > maxY) maxY = y;
     }
     return { minX, minY, maxX, maxY };
+}
+
+// CLAUDE: stroke-level point hit-test (eraser + tape de-select). Returns the
+// index of the first stroke whose polyline passes within `threshold` logical
+// units of `point`, or -1. `eligible` filters which strokes can be hit — the
+// eraser skips taped strokes, tape de-select hits only taped ones. Two-phase:
+// cheap bbox reject, then per-segment distance check.
+export function findStrokeHitAt(
+    point: StrokePoint,
+    strokes: Stroke[],
+    threshold: number,
+    eligible: (s: Stroke) => boolean = () => true,
+): number {
+    const [px, py] = point;
+    for (let i = 0; i < strokes.length; i++) {
+        if (!eligible(strokes[i])) continue;
+        const pts = strokes[i].data;
+        const { minX, minY, maxX, maxY } = getStrokeBounds(pts);
+        if (
+            px < minX - threshold ||
+            px > maxX + threshold ||
+            py < minY - threshold ||
+            py > maxY + threshold
+        )
+            continue;
+        for (let s = 0; s < pts.length - 1; s++) {
+            const [x1, y1] = pts[s];
+            const [x2, y2] = pts[s + 1];
+            const dx = x2 - x1,
+                dy = y2 - y1;
+            const len2 = dx * dx + dy * dy;
+            if (len2 === 0) continue;
+            let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+            t = Math.max(0, Math.min(1, t));
+            const cx = x1 + t * dx;
+            const cy = y1 + t * dy;
+            const d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+            if (d2 <= threshold * threshold) return i;
+        }
+    }
+    return -1;
 }
 
 // CLAUDE: tape-mode marquee hit-test. Returns the ids of all strokes the
@@ -162,41 +210,11 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         }
     }
 
-    // Stroke-level eraser hit-test. Returns the index of the first stroke
-    // whose polyline passes within `threshold` logical units of the cursor,
-    // or -1 if none. Cheap bbox reject first, then per-segment distance check.
-    function findStrokeHitAt(
-        point: StrokePoint,
-        threshold = STROKE_OPTIONS.size * 1.5
-    ): number {
-        const [px, py] = point;
-        for (let i = 0; i < strokes.length; i++) {
-            const pts = strokes[i].data;
-            const { minX, minY, maxX, maxY } = getStrokeBounds(pts);
-            if (
-                px < minX - threshold ||
-                px > maxX + threshold ||
-                py < minY - threshold ||
-                py > maxY + threshold
-            )
-                continue;
-            for (let s = 0; s < pts.length - 1; s++) {
-                const [x1, y1] = pts[s];
-                const [x2, y2] = pts[s + 1];
-                const dx = x2 - x1,
-                    dy = y2 - y1;
-                const len2 = dx * dx + dy * dy;
-                if (len2 === 0) continue;
-                let t = ((px - x1) * dx + (py - y1) * dy) / len2;
-                t = Math.max(0, Math.min(1, t));
-                const cx = x1 + t * dx;
-                const cy = y1 + t * dy;
-                const d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy);
-                if (d2 <= threshold * threshold) return i;
-            }
-        }
-        return -1;
-    }
+    // Eraser threshold in logical units (shared by both erase call sites).
+    const eraseThreshold = STROKE_OPTIONS.size * 1.5;
+    // CLAUDE: the eraser skips taped strokes — they can't be deleted until
+    // un-taped in tape mode (de-select).
+    const eraseEligible = (s: Stroke) => !s.is_taped;
 
     function onPointerDown(event: React.PointerEvent<SVGSVGElement>) {
         // Right button (or stylus barrel button) opens the radial reel.
@@ -212,7 +230,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
         // Erase mode: primary press tries to delete a stroke at the cursor.
         if (mode === "erase") {
-            const hit = findStrokeHitAt(pt);
+            const hit = findStrokeHitAt(pt, strokes, eraseThreshold, eraseEligible);
             if (hit >= 0) {
                 const hitId = strokes[hit].id;
                 setStrokes((prev) => prev.filter((_, i) => i !== hit));
@@ -225,14 +243,14 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
 
     function onPointerMove(event: React.PointerEvent<SVGSVGElement>) {
         // Reel open: highlight the slice based on direction from the open
-        // point. Left of center = draw, right of center = erase. A small
-        // dead-zone keeps `hovered` null for tiny mouse jitter.
+        // point. Left half = draw, right half = erase. A small dead-zone keeps
+        // `hovered` null for tiny mouse jitter.
         if (reel) {
             const dx = event.clientX - reel.x;
             const dy = event.clientY - reel.y;
             const dist = Math.hypot(dx, dy);
-            const hovered: Mode | null =
-                dist < REEL_DEADZONE_PX ? null : dx < 0 ? "draw" : "erase";
+            const hovered: "left" | "right" | null =
+                dist < REEL_DEADZONE_PX ? null : dx < 0 ? "left" : "right";
             if (hovered !== reel.hovered) setReel({ ...reel, hovered });
             return;
         }
@@ -242,7 +260,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
 
         if (mode === "erase") {
             const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
-            const hit = findStrokeHitAt(pt);
+            const hit = findStrokeHitAt(pt, strokes, eraseThreshold, eraseEligible);
             if (hit >= 0) {
                 const hitId = strokes[hit].id;
                 setStrokes((prev) => prev.filter((_, i) => i !== hit));
@@ -259,7 +277,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
     function onPointerUp() {
         // Reel was open: commit the hovered slice (if any) and close.
         if (reel) {
-            if (reel.hovered) setMode(reel.hovered);
+            if (reel.hovered) setMode(reel.hovered === "left" ? "draw" : "erase");
             setReel(null);
             return;
         }
@@ -293,38 +311,104 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
 
 // ---- tape mode -----------------------------------------------------------
 
-// CLAUDE: tape mode. Drag a marquee box; strokes it touches get a live preview
-// highlight (rendered in page.tsx from dragBox), and are committed as `is_taped`
-// on release — additive (taped strokes stay taped until erased). The committed
-// state lives on each Stroke and is persisted to the backend.
+// CLAUDE: tape mode has two reel-toggled sub-modes (like write's draw/erase):
+// - "select": drag a marquee box; strokes it touches get a live preview
+//   highlight (rendered in page.tsx from dragBox) and are committed as
+//   `is_taped=true` on release (additive).
+// - "deselect": point-by-point like the eraser — press/drag over taped strokes
+//   to un-tape them (`is_taped=false`).
+// Both persist to the backend via PUT /mark/:id. The right button opens the reel.
 export function useTapeMode(deps: BoardHandlerDeps): BoardHandlers {
-    const { svgRef, strokes, setStrokes, dragBox, setDragBox, LOGICAL_WIDTH, LOGICAL_HEIGHT } = deps;
+    const {
+        svgRef,
+        strokes,
+        setStrokes,
+        dragBox,
+        setDragBox,
+        reel,
+        setReel,
+        tapeMode,
+        setTapeMode,
+        LOGICAL_WIDTH,
+        LOGICAL_HEIGHT,
+        STROKE_OPTIONS,
+    } = deps;
 
-    // Fire-and-forget tape persist. UI already updated optimistically by the
-    // caller. Mirrors pushMarks/deleteMark in useWriteMode.
-    async function tapeMark(id: string) {
+    // Fire-and-forget tape persist (tape or untape). UI already updated
+    // optimistically by the caller. Mirrors pushMarks/deleteMark in useWriteMode.
+    async function setMarkTaped(id: string, value: boolean) {
         try {
-            await api.put(`/mark/${id}`, { is_taped: true });
+            await api.put(`/mark/${id}`, { is_taped: value });
         } catch (err: any) {
-            console.error("Failed to tape mark", id, err);
+            console.error("Failed to set mark taped state", id, err);
         }
+    }
+    // De-select threshold matches the eraser; de-select only hits taped strokes.
+    const deselectThreshold = STROKE_OPTIONS.size * 1.5;
+    const tapedEligible = (s: Stroke) => !!s.is_taped;
+    // Optimistically un-tape a stroke and persist.
+    function untapeAt(point: StrokePoint) {
+        const hit = findStrokeHitAt(point, strokes, deselectThreshold, tapedEligible);
+        if (hit < 0) return;
+        const hitId = strokes[hit].id;
+        setStrokes((prev) =>
+            prev.map((s) => (s.id === hitId ? { ...s, is_taped: false } : s))
+        );
+        setMarkTaped(hitId, false);
     }
 
     function onPointerDown(event: React.PointerEvent<SVGSVGElement>) {
-        // Only primary button starts a drag-select.
+        // Right button opens the radial reel (Tape | Untape).
+        if (event.button === 2) {
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setReel({ x: event.clientX, y: event.clientY, hovered: null });
+            return;
+        }
         if (event.button !== 0) return;
         event.currentTarget.setPointerCapture(event.pointerId);
         const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        // De-select sub-mode: primary press un-tapes a taped stroke at the cursor.
+        if (tapeMode === "deselect") {
+            untapeAt(pt);
+            return;
+        }
+        // Select sub-mode: start a drag-select box.
         setDragBox({ start: pt, current: pt });
     }
     function onPointerMove(event: React.PointerEvent<SVGSVGElement>) {
-        if (!dragBox) return;
+        // Reel open: highlight the slice by direction (left = Tape, right =
+        // Untape), with a dead-zone for jitter.
+        if (reel) {
+            const dx = event.clientX - reel.x;
+            const dy = event.clientY - reel.y;
+            const dist = Math.hypot(dx, dy);
+            const hovered: "left" | "right" | null =
+                dist < REEL_DEADZONE_PX ? null : dx < 0 ? "left" : "right";
+            if (hovered !== reel.hovered) setReel({ ...reel, hovered });
+            return;
+        }
+        if (event.buttons !== 1) return;
         const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
-        // Only update the box; the preview highlight is derived from dragBox at
-        // render time, so no per-move selection state is needed.
+        // De-select: drag over taped strokes to un-tape them (like the eraser).
+        if (tapeMode === "deselect") {
+            untapeAt(pt);
+            return;
+        }
+        // Select: update the drag box; preview highlight derives from it at render.
+        if (!dragBox) return;
         setDragBox({ start: dragBox.start, current: pt });
     }
     function onPointerUp() {
+        // Reel was open: commit the hovered slice (if any) and close.
+        if (reel) {
+            if (reel.hovered)
+                setTapeMode(reel.hovered === "left" ? "select" : "deselect");
+            setReel(null);
+            return;
+        }
+        // De-select happens live on down/move — nothing to commit on release.
+        if (tapeMode === "deselect") return;
         if (!dragBox) return;
         // Commit on release: tape every stroke inside the final box that isn't
         // already taped (additive). Skip already-taped ones to avoid redundant
@@ -338,11 +422,12 @@ export function useTapeMode(deps: BoardHandlerDeps): BoardHandlers {
             setStrokes((prev) =>
                 prev.map((s) => (tapedSet.has(s.id) ? { ...s, is_taped: true } : s))
             );
-            for (const id of newlyTaped) tapeMark(id);
+            for (const id of newlyTaped) setMarkTaped(id, true);
         }
         setDragBox(null);
     }
     function onPointerCancel() {
+        setReel(null);
         setDragBox(null);
     }
 
