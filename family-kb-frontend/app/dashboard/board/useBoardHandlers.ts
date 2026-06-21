@@ -12,13 +12,17 @@ import type { Board } from "@/types";
 // ---- shared types --------------------------------------------------------
 
 export type StrokePoint = [number, number, number];
-export type Stroke = { id: string; data: StrokePoint[]; color: string };
+// CLAUDE: is_taped mirrors the DB `mark.is_taped` column — a stroke marked by
+// tape mode. Persistent (survives until the stroke is erased), so it lives on
+// the stroke itself rather than a transient selection set.
+export type Stroke = { id: string; data: StrokePoint[]; color: string; is_taped?: boolean };
 export type Mode = "draw" | "erase";
 export type ReelState = { x: number; y: number; hovered: Mode | null } | null;
 export type MarkResponse = {
     id: string;
     color: string;
     data: { points: StrokePoint[] };
+    is_taped?: boolean;
 };
 // CLAUDE: tape-mode drag-select rectangle. Storing start + current (not
 // x/y/w/h) keeps the math symmetric for drags in any direction — derive the
@@ -79,6 +83,50 @@ function getLogicalPoint(
     ];
 }
 
+// CLAUDE: axis-aligned bounding box of a stroke's points. Shared by the eraser
+// hit-test, the tape marquee, and the tape highlight render.
+export function getStrokeBounds(points: StrokePoint[]) {
+    let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
+    for (const [x, y] of points) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+    }
+    return { minX, minY, maxX, maxY };
+}
+
+// CLAUDE: tape-mode marquee hit-test. Returns the ids of all strokes the
+// drag box touches (touch/intersect semantics). Two-phase like findStrokeHitAt:
+// cheap AABB-vs-AABB reject, then precise point-in-rect on survivors.
+export function findStrokesInBox(box: NonNullable<DragBox>, strokes: Stroke[]): string[] {
+    // Normalize the drag box so the test is direction-agnostic.
+    const boxMinX = Math.min(box.start[0], box.current[0]);
+    const boxMaxX = Math.max(box.start[0], box.current[0]);
+    const boxMinY = Math.min(box.start[1], box.current[1]);
+    const boxMaxY = Math.max(box.start[1], box.current[1]);
+
+    const hits: string[] = [];
+    for (const stroke of strokes) {
+        const pts = stroke.data;
+        // Broad phase: reject if the stroke's bbox can't overlap the drag box.
+        const { minX, minY, maxX, maxY } = getStrokeBounds(pts);
+        if (maxX < boxMinX || minX > boxMaxX || maxY < boxMinY || minY > boxMaxY)
+            continue;
+        // Narrow phase: selected if any point falls inside the drag rect.
+        for (const [x, y] of pts) {
+            if (x >= boxMinX && x <= boxMaxX && y >= boxMinY && y <= boxMaxY) {
+                hits.push(stroke.id);
+                break;
+            }
+        }
+    }
+    return hits;
+}
+
 export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
     const {
         svgRef,
@@ -124,16 +172,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         const [px, py] = point;
         for (let i = 0; i < strokes.length; i++) {
             const pts = strokes[i].data;
-            let minX = Infinity,
-                minY = Infinity,
-                maxX = -Infinity,
-                maxY = -Infinity;
-            for (const [x, y] of pts) {
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-            }
+            const { minX, minY, maxX, maxY } = getStrokeBounds(pts);
             if (
                 px < minX - threshold ||
                 px > maxX + threshold ||
@@ -254,10 +293,22 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
 
 // ---- tape mode -----------------------------------------------------------
 
-// CLAUDE: tape mode currently draws a rubber-band selection rectangle on
-// drag. Selection semantics (which strokes get tagged) are not yet wired.
+// CLAUDE: tape mode. Drag a marquee box; strokes it touches get a live preview
+// highlight (rendered in page.tsx from dragBox), and are committed as `is_taped`
+// on release — additive (taped strokes stay taped until erased). The committed
+// state lives on each Stroke and is persisted to the backend.
 export function useTapeMode(deps: BoardHandlerDeps): BoardHandlers {
-    const { svgRef, dragBox, setDragBox, LOGICAL_WIDTH, LOGICAL_HEIGHT } = deps;
+    const { svgRef, strokes, setStrokes, dragBox, setDragBox, LOGICAL_WIDTH, LOGICAL_HEIGHT } = deps;
+
+    // Fire-and-forget tape persist. UI already updated optimistically by the
+    // caller. Mirrors pushMarks/deleteMark in useWriteMode.
+    async function tapeMark(id: string) {
+        try {
+            await api.put(`/mark/${id}`, { is_taped: true });
+        } catch (err: any) {
+            console.error("Failed to tape mark", id, err);
+        }
+    }
 
     function onPointerDown(event: React.PointerEvent<SVGSVGElement>) {
         // Only primary button starts a drag-select.
@@ -269,9 +320,26 @@ export function useTapeMode(deps: BoardHandlerDeps): BoardHandlers {
     function onPointerMove(event: React.PointerEvent<SVGSVGElement>) {
         if (!dragBox) return;
         const pt = getLogicalPoint(event, svgRef, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        // Only update the box; the preview highlight is derived from dragBox at
+        // render time, so no per-move selection state is needed.
         setDragBox({ start: dragBox.start, current: pt });
     }
     function onPointerUp() {
+        if (!dragBox) return;
+        // Commit on release: tape every stroke inside the final box that isn't
+        // already taped (additive). Skip already-taped ones to avoid redundant
+        // network calls.
+        const hits = findStrokesInBox(dragBox, strokes);
+        const newlyTaped = hits.filter(
+            (id) => !strokes.find((s) => s.id === id)?.is_taped
+        );
+        if (newlyTaped.length > 0) {
+            const tapedSet = new Set(newlyTaped);
+            setStrokes((prev) =>
+                prev.map((s) => (tapedSet.has(s.id) ? { ...s, is_taped: true } : s))
+            );
+            for (const id of newlyTaped) tapeMark(id);
+        }
         setDragBox(null);
     }
     function onPointerCancel() {

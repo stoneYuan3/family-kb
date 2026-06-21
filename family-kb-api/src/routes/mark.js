@@ -5,5 +5,6 @@ const authenticate = require('../middleware/authenticate');
 const { editorOnly } = require('../middleware/authorize');
 
 router.delete('/:id', authenticate, editorOnly, markController.deleteMark);
+router.put('/:id', authenticate, editorOnly, markController.updateMark);
 
 module.exports = router;

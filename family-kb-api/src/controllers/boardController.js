@@ -21,7 +21,7 @@ const getCurrentBoard = async (req, res) => {
             result = inserted.rows[0]
         }
         const marks = await pool.query(
-            `SELECT id, color, data FROM mark WHERE "board_id" = $1`, [result.id]
+            `SELECT id, color, data, is_taped FROM mark WHERE "board_id" = $1`, [result.id]
         )
         res.json({ board: result, marks: marks.rows })
 

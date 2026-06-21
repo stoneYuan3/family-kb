@@ -11,6 +11,8 @@ import { Pen, Bookmark } from "lucide-react";
 import {
     useWriteMode,
     useTapeMode,
+    findStrokesInBox,
+    getStrokeBounds,
     type Stroke,
     type StrokePoint,
     type Mode,
@@ -47,7 +49,8 @@ export default function BoardPage() {
     const [dragBox, setDragBox] = useState<DragBox>(null);
 
     // CLAUDE: kill any in-flight drag-box when switching input modes so a
-    // tape-mode rectangle doesn't persist into write mode.
+    // tape-mode rectangle doesn't persist into write mode. (Taped state is a
+    // stroke property and intentionally survives mode switches.)
     useEffect(() => { setDragBox(null); }, [inputMode]);
 
     const fetchBoard = async () => {
@@ -61,6 +64,7 @@ export default function BoardPage() {
                     id: m.id,
                     color: m.color,
                     data: m.data.points,
+                    is_taped: m.is_taped ?? false,
                 }))
             );
         } catch (err: any) {
@@ -91,6 +95,16 @@ export default function BoardPage() {
 
     if (loading) return <p>Loading board…</p>;
     if (error) return <p>Error: {error}</p>;
+
+    // CLAUDE: live preview of which strokes the in-progress tape box touches.
+    // Committed taped strokes (stroke.is_taped) render regardless; this set adds
+    // the not-yet-released ones so the highlight tracks the drag.
+    const previewIds =
+        inputMode === 'tape' && dragBox
+            ? new Set(findStrokesInBox(dragBox, strokes))
+            : null;
+    // Pad the highlight box so the strip comfortably covers the rendered ink.
+    const TAPE_PAD = STROKE_OPTIONS.size;
 
     // CLAUDE: cursor swaps with input mode (tape takes priority), then with
     // write-mode's draw/erase sub-mode. Hotspot offsets are tuned to each icon
@@ -151,13 +165,35 @@ export default function BoardPage() {
                                             </text>
                                         ))}
                                     </g>
+                                    {/* CLAUDE: tape highlight layer — rendered BELOW all ink so
+                                        the yellow strip sits behind the writing. A stroke shows a
+                                        box highlight if it's committed-taped OR in the live drag
+                                        preview. */}
+                                    <g className="tape-highlights">
+                                        {strokes.map((stroke) => {
+                                            if (!stroke.is_taped && !previewIds?.has(stroke.id)) return null;
+                                            const { minX, minY, maxX, maxY } = getStrokeBounds(stroke.data);
+                                            return (
+                                                <rect
+                                                    key={stroke.id}
+                                                    x={minX - TAPE_PAD}
+                                                    y={minY - TAPE_PAD}
+                                                    width={maxX - minX + TAPE_PAD * 2}
+                                                    height={maxY - minY + TAPE_PAD * 2}
+                                                    rx={6}
+                                                    fill="#fde68a"
+                                                    opacity={0.5}
+                                                    pointerEvents="none"
+                                                />
+                                            );
+                                        })}
+                                    </g>
                                     <g>
-                                        {strokes.map((stroke, i) => (
+                                        {strokes.map((stroke) => (
                                             <path
-                                                key={i}
+                                                key={stroke.id}
                                                 d={getSvgFromStroke(getStroke(stroke.data, STROKE_OPTIONS))}
                                                 fill={stroke.color}
-                                                className="bg-red-500"
                                             />
                                         ))}
                                         {/* Render the in-progress stroke if there is one */}
