@@ -89,9 +89,23 @@ const createMark = async (req, res) => {
     }
 };
 
+// DELETE /api/mark/untaped — purge all non-taped marks at the start of a new week
+const clearUntapedMarks = async (req, res) => {
+    try {
+        const result = await pool.query(
+            'DELETE FROM mark WHERE is_taped = false'
+        );
+        res.json({ deleted: result.rowCount });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
 module.exports = {
     getMarks,
     deleteMark,
     updateMark,
     createMark,
+    clearUntapedMarks,
 };

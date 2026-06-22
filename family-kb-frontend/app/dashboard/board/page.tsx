@@ -1,6 +1,6 @@
 'use client'
 
-import { startOfWeek, endOfWeek, isAfter, isMonday } from 'date-fns';
+import { startOfWeek, endOfWeek, isAfter } from 'date-fns';
 
 import { useEffect, useState, useRef } from "react"
 import { api } from "@/lib/api";
@@ -47,20 +47,30 @@ export default function BoardPage() {
     const [inputMode, setInputMode] = useState<InputMode>("write")
     const [reel, setReel] = useState<ReelState>(null);
     const [dragBox, setDragBox] = useState<DragBox>(null);
-    const [storedStartOfWeek, setStartOfWeek] = useState<Date | null>()
+    const [storedStartOfWeek, setStartOfWeek] = useState<Date | null>(null)
 
     const checkAndUpdateWeek = () => {
-        const today = new Date();
-        const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 })
-        const currentWeekEnd = endOfWeek(today, { weekStartsOn: 1 })
-        if(storedStartOfWeek === null) {
-            setStartOfWeek(currentWeekStart)
+        const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+        // localStorage persists the last-seen week across page reloads
+        const stored = localStorage.getItem('board_week_start');
+        if (!stored) {
+            localStorage.setItem('board_week_start', currentWeekStart.toISOString());
+            setStartOfWeek(currentWeekStart);
+            return;
         }
-        const isNewWeek = isAfter(currentWeekStart, storedStartOfWeek)
-        if(isNewWeek) {
-            setStartOfWeek(currentWeekStart)
+        const storedDate = new Date(stored);
+        setStartOfWeek(storedDate);
+        if (isAfter(currentWeekStart, storedDate)) {
+            localStorage.setItem('board_week_start', currentWeekStart.toISOString());
+            setStartOfWeek(currentWeekStart);
+            api.delete<void>('/mark/untaped').catch(console.error);
+            setStrokes(prev => prev.filter(s => s.is_taped));
         }
     }
+
+    useEffect(() => {
+        checkAndUpdateWeek();
+    }, [])
 
     // CLAUDE: kill any in-flight drag-box when switching input modes so a
     // tape-mode rectangle doesn't persist into write mode. (Taped state is a
@@ -131,12 +141,17 @@ export default function BoardPage() {
         : mode === 'draw'
             ? "url('/cursors/pen.svg') 3 21, crosshair"
             : "url('/cursors/eraser.svg') 5 18, crosshair";
-
+    
     return (
         <>
             <div>
                 <div className="flex flex-col items-center">
                     <div className="flex w-full max-w-[800px] justify-between mx-4 items-center">
+                        {storedStartOfWeek && (
+                            <h1 className="my-6">
+                                {storedStartOfWeek.toLocaleDateString()} – {endOfWeek(storedStartOfWeek, { weekStartsOn: 1 }).toLocaleDateString()}
+                            </h1>
+                        )}
                         <div className="flex gap-[32px] items-center">
                             <button
                                 aria-label="Write"
