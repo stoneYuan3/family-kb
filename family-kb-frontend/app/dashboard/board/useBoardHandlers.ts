@@ -196,7 +196,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
     // UI — the stroke is already in local state by the time this runs.
     async function pushMarks(marks: Stroke) {
         try {
-            await api.post<Board>(`/board/current`, { body: marks });
+            await api.post<Board>(`/mark`, { body: marks });
         } catch (err: any) {
             console.error("Failed to push mark", err);
         }

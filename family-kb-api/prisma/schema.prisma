@@ -55,21 +55,12 @@ model users {
   item_collection item_collection[]
 }
 
-model board {
-  id         Int      @id @default(autoincrement())
-  week_start DateTime @unique @db.Date
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  marks      mark[]
-}
-
 model mark {
   id          String   @id @db.Uuid
-  board_id    Int
   color       String
   data        Json
   is_taped    Boolean  @default(false)
   created_at  DateTime @default(now())
-  board       board    @relation(fields: [board_id], references: [id], onDelete: Cascade)
 }
 
 enum user_role {
