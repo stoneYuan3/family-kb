@@ -48,6 +48,7 @@ export type BoardHandlerDeps = {
     strokes: Stroke[];
     setStrokes: React.Dispatch<React.SetStateAction<Stroke[]>>;
     currentPoints: StrokePoint[] | null;
+    currentColor: string,
     setCurrentPoints: React.Dispatch<React.SetStateAction<StrokePoint[] | null>>;
     mode: Mode;
     setMode: React.Dispatch<React.SetStateAction<Mode>>;
@@ -182,6 +183,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         setStrokes,
         currentPoints,
         setCurrentPoints,
+        currentColor,
         mode,
         setMode,
         reel,
@@ -292,7 +294,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         const currentStroke: Stroke = {
             id: crypto.randomUUID(),
             data: currentPoints,
-            color: "#222",
+            color: currentColor,
         };
         // Commit the in-progress stroke to the strokes array.
         setStrokes((prev) => [...prev, currentStroke]);
