@@ -7,6 +7,7 @@
 // (rules of hooks) and picks the active bundle based on `inputMode`.
 import type React from "react";
 import { api } from "@/lib/api";
+import { uuid } from "@/lib/utils";
 import type { Board } from "@/types";
 
 // ---- shared types --------------------------------------------------------
@@ -292,7 +293,7 @@ export function useWriteMode(deps: BoardHandlerDeps): BoardHandlers {
         }
 
         const currentStroke: Stroke = {
-            id: crypto.randomUUID(),
+            id: uuid(),
             data: currentPoints,
             color: currentColor,
         };
