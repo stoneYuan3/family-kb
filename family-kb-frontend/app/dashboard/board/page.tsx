@@ -194,7 +194,7 @@ export default function BoardPage() {
                             </button>
                         </div>
                     </div>
-                    <div className="w-full h-full mb-10 aspect-[14:9] canvas-wrapper">
+                    <div className="w-full h-full mb-10 aspect-[14/9] canvas-wrapper">
                         <svg
                             viewBox={`0 0 ${LOGICAL_WIDTH} ${LOGICAL_HEIGHT}`} className="border-4 border-grey-100 rounded-md mx-4"
                             style={{ cursor: svgCursor }}
